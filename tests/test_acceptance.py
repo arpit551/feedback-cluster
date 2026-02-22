@@ -1,25 +1,9 @@
 """Acceptance tests: verify end-to-end clustering behavior with 10+ ideas across both engines."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 import cluster_api.engines.bertopic_engine as bertopic_engine
-
-
-def _add_idea(client, text, user_id="u1"):
-    resp = client.post("/ideas", json={"text": text, "user_id": user_id})
-    assert resp.status_code == 201
-    return resp.json()["idea_id"]
-
-
-def _mock_openai_response(cluster_name: str, is_new: bool):
-    mock_message = MagicMock()
-    mock_message.content = json.dumps({"cluster_name": cluster_name, "is_new": is_new})
-    mock_choice = MagicMock()
-    mock_choice.message = mock_message
-    mock_response = MagicMock()
-    mock_response.choices = [mock_choice]
-    return mock_response
+from tests.conftest import add_idea, mock_openai_response
 
 
 # A set of 12 ideas spanning 4 topic groups:
@@ -58,7 +42,7 @@ def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
 
     idea_ids = []
     for text, _ in IDEAS:
-        idea_ids.append(_add_idea(client, text))
+        idea_ids.append(add_idea(client, text))
 
     assert len(idea_ids) == 12
 
@@ -74,7 +58,7 @@ def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
     for i, (text, group_name) in enumerate(IDEAS):
         # For each group, the first idea creates a new cluster, the rest join it
         is_first_in_group = i % 3 == 0
-        mock_client.chat.completions.create.return_value = _mock_openai_response(
+        mock_client.chat.completions.create.return_value = mock_openai_response(
             group_name, is_new=is_first_in_group
         )
         resp = client.post("/cluster/llm", json={"idea_id": idea_ids[i]})
@@ -106,20 +90,19 @@ def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
     assert llm_names == {"Onboarding", "Dark Mode", "Email Notifications", "Search"}
 
 
-@patch("cluster_api.engines.llm_engine._get_client")
-def test_new_idea_joins_existing_cluster_bertopic(mock_get_client, client):
+def test_new_idea_joins_existing_cluster_bertopic(client):
     """Add an idea that should fit an existing BERTopic cluster rather than creating a new one."""
     bertopic_engine._model = None
 
     # Create a cluster with a seed idea
-    id1 = _add_idea(client, "Improve the user onboarding experience for new signups")
+    id1 = add_idea(client, "Improve the user onboarding experience for new signups")
     r1 = client.post("/cluster/bertopic", json={"idea_id": id1})
     assert r1.status_code == 200
     assert r1.json()["is_new"] is True
     original_cluster_id = r1.json()["cluster_id"]
 
     # Add a very similar idea - should join the existing cluster
-    id2 = _add_idea(client, "Make the onboarding experience better for new signups")
+    id2 = add_idea(client, "Make the onboarding experience better for new signups")
     r2 = client.post("/cluster/bertopic", json={"idea_id": id2})
     assert r2.status_code == 200
     assert r2.json()["is_new"] is False
@@ -133,20 +116,20 @@ def test_new_idea_joins_existing_cluster_llm(mock_get_client, client):
     mock_get_client.return_value = mock_client
 
     # Create a cluster with a seed idea
-    mock_client.chat.completions.create.return_value = _mock_openai_response(
+    mock_client.chat.completions.create.return_value = mock_openai_response(
         "User Onboarding", is_new=True
     )
-    id1 = _add_idea(client, "Improve the user onboarding experience")
+    id1 = add_idea(client, "Improve the user onboarding experience")
     r1 = client.post("/cluster/llm", json={"idea_id": id1})
     assert r1.status_code == 200
     assert r1.json()["is_new"] is True
     original_cluster_id = r1.json()["cluster_id"]
 
     # Add a new idea that the LLM assigns to the existing cluster
-    mock_client.chat.completions.create.return_value = _mock_openai_response(
+    mock_client.chat.completions.create.return_value = mock_openai_response(
         "User Onboarding", is_new=False
     )
-    id2 = _add_idea(client, "Add a guided tour for first-time users")
+    id2 = add_idea(client, "Add a guided tour for first-time users")
     r2 = client.post("/cluster/llm", json={"idea_id": id2})
     assert r2.status_code == 200
     assert r2.json()["is_new"] is False

@@ -1,3 +1,6 @@
+import json
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,3 +39,23 @@ def client(test_db):
 
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c
+
+
+def add_idea(client, text, user_id="u1"):
+    """Helper to add an idea via the API and return the idea_id."""
+    resp = client.post("/ideas", json={"text": text, "user_id": user_id})
+    assert resp.status_code == 201
+    return resp.json()["idea_id"]
+
+
+def mock_openai_response(cluster_name: str, is_new: bool):
+    """Create a mock OpenAI chat completion response."""
+    mock_message = MagicMock()
+    mock_message.content = json.dumps(
+        {"cluster_name": cluster_name, "is_new": is_new}
+    )
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+    return mock_response
