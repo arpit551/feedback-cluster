@@ -87,11 +87,11 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 
 ### Task 5: Verify acceptance criteria
 
-- [ ] Manual test: POST 10+ ideas via /ideas, cluster each with both /cluster/bertopic and /cluster/llm, verify clusters form sensibly
-- [ ] Manual test: add a new idea that should fit an existing cluster, verify it gets assigned rather than creating a new cluster
-- [ ] Run full test suite (pytest)
-- [ ] Run linter (ruff check)
-- [ ] Verify test coverage meets 80%+
+- [x] Manual test: POST 10+ ideas via /ideas, cluster each with both /cluster/bertopic and /cluster/llm, verify clusters form sensibly
+- [x] Manual test: add a new idea that should fit an existing cluster, verify it gets assigned rather than creating a new cluster
+- [x] Run full test suite (pytest)
+- [x] Run linter (ruff check)
+- [x] Verify test coverage meets 80%+
 
 ### Task 6: Update documentation
 
