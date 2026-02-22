@@ -45,7 +45,11 @@ _SessionLocal = None
 
 def init_db(db_path: str = "ideas.db") -> None:
     global _engine, _SessionLocal
-    _engine = create_engine(f"sqlite:///{db_path}", echo=False)
+    _engine = create_engine(
+        f"sqlite:///{db_path}",
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
     _SessionLocal = sessionmaker(bind=_engine)
     Base.metadata.create_all(_engine)
 

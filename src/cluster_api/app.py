@@ -9,6 +9,7 @@ from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session, init_db
 from cluster_api.engines.bertopic_engine import cluster_idea as bertopic_cluster_idea
 from cluster_api.engines.llm_engine import cluster_idea as llm_cluster_idea
+from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
 from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterResponse, IdeaOut
 
 logger = logging.getLogger(__name__)
@@ -81,8 +82,10 @@ def cluster_bertopic(req: ClusterIdeaRequest):
 
     try:
         result = bertopic_cluster_idea(req.idea_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except AlreadyClusteredError:
+        raise HTTPException(status_code=409, detail="Idea already clustered with bertopic")
+    except IdeaNotFoundError:
+        raise HTTPException(status_code=404, detail="Idea not found")
     except Exception:
         logger.exception("BERTopic clustering failed for idea %s", req.idea_id)
         raise HTTPException(status_code=500, detail="Clustering failed")
@@ -128,8 +131,13 @@ def cluster_llm(req: ClusterIdeaRequest):
 
     try:
         result = llm_cluster_idea(req.idea_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except AlreadyClusteredError:
+        raise HTTPException(status_code=409, detail="Idea already clustered with llm")
+    except IdeaNotFoundError:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    except RuntimeError as e:
+        logger.error("LLM clustering configuration error: %s", e)
+        raise HTTPException(status_code=500, detail="LLM clustering failed")
     except Exception:
         logger.exception("LLM clustering failed for idea %s", req.idea_id)
         raise HTTPException(status_code=500, detail="Clustering failed")
