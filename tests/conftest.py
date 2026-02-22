@@ -59,3 +59,23 @@ def mock_openai_response(cluster_name: str, is_new: bool):
     mock_response = MagicMock()
     mock_response.choices = [mock_choice]
     return mock_response
+
+
+def mock_openai_chat_response(text: str):
+    """Create a mock OpenAI chat completion response with plain text content."""
+    mock_message = MagicMock()
+    mock_message.content = text
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+    return mock_response
+
+
+def make_mock_embedding_response(embedding):
+    """Create a mock OpenAI embeddings API response."""
+    mock_data = MagicMock()
+    mock_data.embedding = list(embedding)
+    mock_response = MagicMock()
+    mock_response.data = [mock_data]
+    return mock_response

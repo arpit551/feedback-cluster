@@ -43,21 +43,55 @@ def cluster_idea(idea_id: int) -> dict:
         session.close()
 
     # Build prompt for the LLM -- separate system instructions from user content
+    system_msg = (
+        "You are a strict topic classifier for user-submitted product ideas.\n\n"
+        "RULES:\n"
+        "1. Only assign an idea to an existing cluster if it is CLEARLY about the same "
+        "specific topic. When in doubt, create a new cluster.\n"
+        "2. Cluster names MUST be 2-5 words, specific and descriptive "
+        '(e.g. "Dark Mode Toggle", "Email Account Alerts", "Search Navigation Bar"). '
+        "Avoid generic names like \"Feature Request\" or \"Improvement\".\n"
+        "3. Do NOT over-group. Two ideas that share a vague theme but discuss different "
+        "features must go in separate clusters.\n"
+        "4. If there are no existing clusters, create a new one."
+    )
+
     if cluster_data:
-        cluster_list = "\n".join(f"- {name}" for _, name in cluster_data)
-        system_msg = (
-            "You are a topic classifier. Given a new idea and a list of existing clusters, "
-            "decide whether the idea fits an existing cluster or needs a new one. "
-            "If the idea fits an existing cluster, return its exact name. "
-            "If it needs a new cluster, suggest a short descriptive name for the new cluster."
+        # Include cluster names with representative idea examples
+        session2 = get_session()
+        try:
+            cluster_info_parts = []
+            for cid, cname in cluster_data:
+                assignments = (
+                    session2.query(IdeaCluster)
+                    .filter(IdeaCluster.cluster_id == cid)
+                    .all()
+                )
+                count = len(assignments)
+                idea_ids = [a.idea_id for a in assignments]
+                # Get up to 3 representative ideas
+                sample_ideas = (
+                    session2.query(Idea)
+                    .filter(Idea.id.in_(idea_ids[:3]))
+                    .all()
+                )
+                examples = [f'  "{idea.text}"' for idea in sample_ideas]
+                examples_str = "\n".join(examples)
+                cluster_info_parts.append(
+                    f"- {cname} ({count} ideas)\n  Examples:\n{examples_str}"
+                )
+            cluster_list = "\n".join(cluster_info_parts)
+        finally:
+            session2.close()
+
+        user_msg = (
+            f"Existing clusters:\n{cluster_list}\n\n"
+            f'New idea: "{idea_text}"\n\n'
+            "Remember: only assign to an existing cluster if the idea is clearly about "
+            "the SAME specific topic. Do not force ideas into existing clusters."
         )
-        user_msg = f"Existing clusters:\n{cluster_list}\n\nNew idea: \"{idea_text}\""
     else:
-        system_msg = (
-            "You are a topic classifier. There are no existing clusters yet. "
-            "Suggest a short descriptive name for a new cluster that the given idea belongs to."
-        )
-        user_msg = f"New idea: \"{idea_text}\""
+        user_msg = f'New idea: "{idea_text}"'
 
     client = _get_client()
     try:
