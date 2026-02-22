@@ -95,5 +95,5 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 
 ### Task 6: Update documentation
 
-- [ ] Update README.md with project description, setup instructions, API usage examples, and environment variable configuration
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Update README.md with project description, setup instructions, API usage examples, and environment variable configuration
+- [x] Move this plan to `docs/plans/completed/`
