@@ -219,3 +219,32 @@ def test_cluster_duplicate_idea_rejected(mock_get_client, client):
     # Second attempt should be rejected
     resp = client.post("/cluster/llm", json={"idea_id": idea_id})
     assert resp.status_code == 409
+
+
+@patch("cluster_api.engines.llm_engine._get_client")
+def test_prompt_includes_representative_ideas(mock_get_client, client):
+    """When clusters exist, the prompt should include example idea texts."""
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+
+    # First idea creates a cluster
+    mock_client.chat.completions.create.return_value = mock_openai_response(
+        "User Onboarding", is_new=True
+    )
+    id1 = add_idea(client, "Improve the user onboarding experience")
+    client.post("/cluster/llm", json={"idea_id": id1})
+
+    # Second idea -- capture the prompt sent to the LLM
+    mock_client.chat.completions.create.return_value = mock_openai_response(
+        "User Onboarding", is_new=False
+    )
+    id2 = add_idea(client, "Make signup smoother")
+    client.post("/cluster/llm", json={"idea_id": id2})
+
+    # Check the second call's prompt includes the first idea's text as an example
+    calls = mock_client.chat.completions.create.call_args_list
+    assert len(calls) == 2
+    second_call = calls[1]
+    user_msg = second_call.kwargs["messages"][1]["content"]
+    assert "Improve the user onboarding experience" in user_msg
+    assert "Examples:" in user_msg

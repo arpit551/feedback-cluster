@@ -29,6 +29,7 @@ class ClusterIdeaResponse(BaseModel):
     cluster_id: int
     cluster_name: str
     is_new: bool
+    confidence: float = 1.0
 
 
 class ClusterResponse(BaseModel):

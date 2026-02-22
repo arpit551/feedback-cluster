@@ -9,9 +9,16 @@ import cluster_api.db as db_module
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session, init_db
 from cluster_api.engines.bertopic_engine import cluster_idea as bertopic_cluster_idea
+
 from cluster_api.engines.llm_engine import cluster_idea as llm_cluster_idea
 from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
-from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterIdeaResponse, ClusterResponse, IdeaOut
+from cluster_api.models import (
+    AddIdeaRequest,
+    AddIdeaResponse,
+    ClusterIdeaResponse,
+    ClusterResponse,
+    IdeaOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +99,7 @@ def cluster_bertopic(req: ClusterIdeaRequest):
         raise HTTPException(status_code=500, detail="Clustering failed")
     result["idea_id"] = req.idea_id
     return result
+
 
 
 def _list_clusters(method: str) -> list[ClusterResponse]:

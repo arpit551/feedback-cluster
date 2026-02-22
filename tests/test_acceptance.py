@@ -1,9 +1,14 @@
 """Acceptance tests: verify end-to-end clustering behavior with 10+ ideas across both engines."""
 
+import numpy as np
 from unittest.mock import MagicMock, patch
 
-import cluster_api.engines.bertopic_engine as bertopic_engine
-from tests.conftest import add_idea, mock_openai_response
+from tests.conftest import (
+    add_idea,
+    make_mock_embedding_response,
+    mock_openai_chat_response,
+    mock_openai_response,
+)
 
 
 # A set of 12 ideas spanning 4 topic groups:
@@ -30,15 +35,47 @@ IDEAS = [
     ("Build an autocomplete search feature for idea lookup", "Search"),
 ]
 
+# Embedding vectors per topic group (similar within group, distant between groups)
+TOPIC_EMBEDDINGS = {
+    "onboarding": np.array([0.9, 0.1, 0.0, 0.0], dtype=np.float32),
+    "signup": np.array([0.88, 0.12, 0.01, 0.0], dtype=np.float32),
+    "walkthrough": np.array([0.87, 0.13, 0.02, 0.0], dtype=np.float32),
+    "dark mode": np.array([0.0, 0.9, 0.0, 0.0], dtype=np.float32),
+    "theme switching": np.array([0.01, 0.88, 0.02, 0.0], dtype=np.float32),
+    "color theme": np.array([0.02, 0.87, 0.01, 0.0], dtype=np.float32),
+    "email notifications": np.array([0.0, 0.0, 0.9, 0.0], dtype=np.float32),
+    "email when": np.array([0.01, 0.0, 0.88, 0.02], dtype=np.float32),
+    "email alerts": np.array([0.02, 0.01, 0.87, 0.0], dtype=np.float32),
+    "search bar": np.array([0.0, 0.0, 0.0, 0.9], dtype=np.float32),
+    "full-text search": np.array([0.0, 0.02, 0.01, 0.88], dtype=np.float32),
+    "autocomplete search": np.array([0.01, 0.0, 0.02, 0.87], dtype=np.float32),
+}
 
-@patch("cluster_api.engines.llm_engine._get_client")
-def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
-    """POST 10+ ideas, cluster each with both bertopic and llm, verify clusters form sensibly."""
-    bertopic_engine._model = None
 
-    # Setup LLM mock to return topic-appropriate clusters
+def _make_bertopic_mock():
+    """Create a mock OpenAI client for bertopic with topic-aware embeddings."""
     mock_client = MagicMock()
-    mock_get_client.return_value = mock_client
+
+    def fake_embeddings_create(**kwargs):
+        text = kwargs.get("input", [""])[0].lower()
+        for substring, emb in TOPIC_EMBEDDINGS.items():
+            if substring in text:
+                return make_mock_embedding_response(emb)
+        return make_mock_embedding_response(np.random.rand(4).astype(np.float32))
+
+    mock_client.embeddings.create.side_effect = fake_embeddings_create
+    mock_client.chat.completions.create.return_value = mock_openai_chat_response("Topic")
+    return mock_client
+
+
+@patch("cluster_api.engines.bertopic_engine._get_client")
+@patch("cluster_api.engines.llm_engine._get_client")
+def test_cluster_10_plus_ideas_with_both_engines(mock_llm_client, mock_bert_client, client):
+    """POST 10+ ideas, cluster each with both bertopic and llm, verify clusters form sensibly."""
+    mock_bert_client.return_value = _make_bertopic_mock()
+
+    mock_llm = MagicMock()
+    mock_llm_client.return_value = mock_llm
 
     idea_ids = []
     for text, _ in IDEAS:
@@ -56,9 +93,8 @@ def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
     # Cluster each idea with LLM (mock responses based on expected group)
     llm_results = []
     for i, (text, group_name) in enumerate(IDEAS):
-        # For each group, the first idea creates a new cluster, the rest join it
         is_first_in_group = i % 3 == 0
-        mock_client.chat.completions.create.return_value = mock_openai_response(
+        mock_llm.chat.completions.create.return_value = mock_openai_response(
             group_name, is_new=is_first_in_group
         )
         resp = client.post("/cluster/llm", json={"idea_id": idea_ids[i]})
@@ -90,9 +126,23 @@ def test_cluster_10_plus_ideas_with_both_engines(mock_get_client, client):
     assert llm_names == {"Onboarding", "Dark Mode", "Email Notifications", "Search"}
 
 
-def test_new_idea_joins_existing_cluster_bertopic(client):
+@patch("cluster_api.engines.bertopic_engine._get_client")
+def test_new_idea_joins_existing_cluster_bertopic(mock_get_client, client):
     """Add an idea that should fit an existing BERTopic cluster rather than creating a new one."""
-    bertopic_engine._model = None
+    onboarding_emb = np.array([0.9, 0.1, 0.0], dtype=np.float32)
+    onboarding_emb_2 = np.array([0.88, 0.12, 0.01], dtype=np.float32)
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_openai_chat_response("Onboarding")
+
+    def fake_embeddings_create(**kwargs):
+        text = kwargs.get("input", [""])[0].lower()
+        if "better" in text:
+            return make_mock_embedding_response(onboarding_emb_2)
+        return make_mock_embedding_response(onboarding_emb)
+
+    mock_client.embeddings.create.side_effect = fake_embeddings_create
+    mock_get_client.return_value = mock_client
 
     # Create a cluster with a seed idea
     id1 = add_idea(client, "Improve the user onboarding experience for new signups")
