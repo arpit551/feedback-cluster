@@ -3,9 +3,11 @@ from typing import Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from sqlalchemy import text
 
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session
+from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
 
 _model: Optional[SentenceTransformer] = None
 
@@ -54,7 +56,7 @@ def cluster_idea(idea_id: int) -> dict:
     try:
         idea = session.query(Idea).filter(Idea.id == idea_id).first()
         if idea is None:
-            raise ValueError(f"Idea {idea_id} not found")
+            raise IdeaNotFoundError(idea_id)
         idea_text = idea.text
     finally:
         session.close()
@@ -88,6 +90,17 @@ def cluster_idea(idea_id: int) -> dict:
 
     session = get_session()
     try:
+        # Acquire exclusive write lock before checking to prevent race conditions
+        session.execute(text("BEGIN IMMEDIATE"))
+        existing = (
+            session.query(IdeaCluster)
+            .join(Cluster)
+            .filter(IdeaCluster.idea_id == idea_id, Cluster.method == "bertopic")
+            .first()
+        )
+        if existing is not None:
+            raise AlreadyClusteredError(idea_id, "bertopic")
+
         if best_cluster_id is not None and best_similarity >= settings.similarity_threshold:
             # Assign to existing cluster
             assignment = IdeaCluster(idea_id=idea_id, cluster_id=best_cluster_id)

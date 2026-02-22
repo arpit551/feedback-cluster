@@ -2,13 +2,19 @@ import json
 
 from openai import OpenAI
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session
+from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
 
 
 def _get_client() -> OpenAI:
+    if not settings.openai_api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY environment variable is not set. "
+            "LLM clustering requires a valid OpenAI API key."
+        )
     return OpenAI(api_key=settings.openai_api_key)
 
 
@@ -21,7 +27,7 @@ def cluster_idea(idea_id: int) -> dict:
     try:
         idea = session.query(Idea).filter(Idea.id == idea_id).first()
         if idea is None:
-            raise ValueError(f"Idea {idea_id} not found")
+            raise IdeaNotFoundError(idea_id)
         idea_text = idea.text
     finally:
         session.close()
@@ -99,9 +105,25 @@ def cluster_idea(idea_id: int) -> dict:
     cluster_name = decision["cluster_name"]
     is_new = decision["is_new"]
 
+    # Normalize cluster name: strip whitespace, reject blank names
+    cluster_name = cluster_name.strip()
+    if not cluster_name:
+        raise RuntimeError("LLM returned an empty cluster name")
+
     # If the LLM says it fits an existing cluster, find it
     session = get_session()
     try:
+        # Acquire exclusive write lock before checking to prevent race conditions
+        session.execute(text("BEGIN IMMEDIATE"))
+        existing_assignment = (
+            session.query(IdeaCluster)
+            .join(Cluster)
+            .filter(IdeaCluster.idea_id == idea_id, Cluster.method == "llm")
+            .first()
+        )
+        if existing_assignment is not None:
+            raise AlreadyClusteredError(idea_id, "llm")
+
         if not is_new:
             # Look up the existing cluster by name
             existing = (
