@@ -1,9 +1,7 @@
-import os
-import tempfile
-
 import pytest
+from fastapi.testclient import TestClient
 
-from cluster_api.db import Base, init_db, get_session, _engine
+from cluster_api.db import get_session, init_db
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +12,7 @@ def test_db(tmp_path):
     yield
     # Clean up global state
     import cluster_api.db as db_module
+
     if db_module._engine:
         db_module._engine.dispose()
     db_module._engine = None
@@ -28,3 +27,12 @@ def db_session(test_db):
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture
+def client(test_db):
+    """Provide a TestClient that uses the test database (already initialized by test_db)."""
+    from cluster_api.app import app
+
+    with TestClient(app, raise_server_exceptions=True) as c:
+        yield c

@@ -44,13 +44,13 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 - Create: `src/cluster_api/config.py`
 - Create: `tests/test_ideas.py`
 
-- [ ] Create config module (OpenAI API key from env, DB path, model defaults)
-- [ ] Create FastAPI app with lifespan that initializes DB on startup
-- [ ] Implement POST /ideas endpoint - accepts idea text and user_id, stores raw idea in DB, returns idea_id
-- [ ] Implement GET /ideas endpoint - returns all stored ideas
-- [ ] Add GET /health endpoint
-- [ ] Write integration tests via TestClient: POST an idea, verify it is stored, GET ideas and verify the list
-- [ ] Run test suite - must pass before task 3
+- [x] Create config module (OpenAI API key from env, DB path, model defaults)
+- [x] Create FastAPI app with lifespan that initializes DB on startup
+- [x] Implement POST /ideas endpoint - accepts idea text and user_id, stores raw idea in DB, returns idea_id
+- [x] Implement GET /ideas endpoint - returns all stored ideas
+- [x] Add GET /health endpoint
+- [x] Write integration tests via TestClient: POST an idea, verify it is stored, GET ideas and verify the list
+- [x] Run test suite - must pass before task 3
 
 ### Task 3: BERTopic clustering engine with incremental assignment
 
