@@ -1,9 +1,16 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AddIdeaRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
     user_id: str = Field(..., min_length=1, max_length=255)
+
+    @field_validator("text", "user_id")
+    @classmethod
+    def must_not_be_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
 
 
 class AddIdeaResponse(BaseModel):
