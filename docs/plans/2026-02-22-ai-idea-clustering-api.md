@@ -59,15 +59,15 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 - Create: `src/cluster_api/engines/bertopic_engine.py`
 - Create: `tests/test_bertopic_clustering.py`
 
-- [ ] Implement cluster_idea function: given a new idea text, compute its embedding using sentence-transformers
-- [ ] Load existing BERTopic clusters from DB (method=bertopic). Compare the new idea embedding against existing cluster centroids
-- [ ] If the idea is close enough to an existing cluster (cosine similarity above threshold), assign it to that cluster
-- [ ] If the idea does not fit any existing cluster, create a new cluster using BERTopic topic representation as the name, save to DB
-- [ ] Store the idea-cluster assignment in the IdeaCluster table
-- [ ] Implement POST /cluster/bertopic endpoint that triggers BERTopic clustering for a given idea_id (idea must already exist in DB)
-- [ ] Implement GET /clusters/bertopic endpoint that returns all BERTopic clusters with their assigned ideas
-- [ ] Write integration tests via TestClient: POST several ideas, cluster each via the endpoint, verify clusters are created and ideas are assigned correctly
-- [ ] Run test suite - must pass before task 4
+- [x] Implement cluster_idea function: given a new idea text, compute its embedding using sentence-transformers
+- [x] Load existing BERTopic clusters from DB (method=bertopic). Compare the new idea embedding against existing cluster centroids
+- [x] If the idea is close enough to an existing cluster (cosine similarity above threshold), assign it to that cluster
+- [x] If the idea does not fit any existing cluster, create a new cluster using BERTopic topic representation as the name, save to DB
+- [x] Store the idea-cluster assignment in the IdeaCluster table
+- [x] Implement POST /cluster/bertopic endpoint that triggers BERTopic clustering for a given idea_id (idea must already exist in DB)
+- [x] Implement GET /clusters/bertopic endpoint that returns all BERTopic clusters with their assigned ideas
+- [x] Write integration tests via TestClient: POST several ideas, cluster each via the endpoint, verify clusters are created and ideas are assigned correctly
+- [x] Run test suite - must pass before task 4
 
 ### Task 4: LLM-based clustering engine with incremental assignment
 
