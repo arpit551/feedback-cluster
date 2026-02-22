@@ -30,12 +30,12 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 - Create: `tests/__init__.py`
 - Create: `tests/conftest.py` (shared TestClient fixture)
 
-- [ ] Initialize pyproject.toml with dependencies (fastapi, uvicorn, bertopic, sentence-transformers, openai, pydantic, sqlalchemy, aiosqlite, pytest, httpx)
-- [ ] Define SQLAlchemy models: Idea table (id, text, user_id, created_at), Cluster table (id, name, method), IdeaCluster join table (idea_id, cluster_id)
-- [ ] Define Pydantic schemas: AddIdeaRequest (text, user_id), AddIdeaResponse (idea_id), ClusterResponse (cluster_id, name, ideas list)
-- [ ] Create DB initialization (SQLite file, create tables on startup)
-- [ ] Write conftest.py with a TestClient fixture using a test SQLite DB
-- [ ] Run test suite - must pass before task 2
+- [x] Initialize pyproject.toml with dependencies (fastapi, uvicorn, bertopic, sentence-transformers, openai, pydantic, sqlalchemy, aiosqlite, pytest, httpx)
+- [x] Define SQLAlchemy models: Idea table (id, text, user_id, created_at), Cluster table (id, name, method), IdeaCluster join table (idea_id, cluster_id)
+- [x] Define Pydantic schemas: AddIdeaRequest (text, user_id), AddIdeaResponse (idea_id), ClusterResponse (cluster_id, name, ideas list)
+- [x] Create DB initialization (SQLite file, create tables on startup)
+- [x] Write conftest.py with a TestClient fixture using a test SQLite DB
+- [x] Run test suite - must pass before task 2
 
 ### Task 2: Add Ideas endpoint with DB storage
 
