@@ -1,14 +1,17 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from cluster_api.config import settings
 import cluster_api.db as db_module
+from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session, init_db
 from cluster_api.engines.bertopic_engine import cluster_idea as bertopic_cluster_idea
 from cluster_api.engines.llm_engine import cluster_idea as llm_cluster_idea
 from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterResponse, IdeaOut
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -81,6 +84,7 @@ def cluster_bertopic(req: ClusterIdeaRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
+        logger.exception("BERTopic clustering failed for idea %s", req.idea_id)
         raise HTTPException(status_code=500, detail="Clustering failed")
     result["idea_id"] = req.idea_id
     return result
@@ -127,6 +131,7 @@ def cluster_llm(req: ClusterIdeaRequest):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
+        logger.exception("LLM clustering failed for idea %s", req.idea_id)
         raise HTTPException(status_code=500, detail="Clustering failed")
     result["idea_id"] = req.idea_id
     return result
