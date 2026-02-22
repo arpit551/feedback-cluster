@@ -75,15 +75,15 @@ Build a FastAPI REST API that stores plain-English user ideas in a SQLite databa
 - Create: `src/cluster_api/engines/llm_engine.py`
 - Create: `tests/test_llm_clustering.py`
 
-- [ ] Implement cluster_idea function: given a new idea text, load existing LLM clusters (method=llm) from DB
-- [ ] Build a prompt that provides existing cluster names and asks the LLM whether the new idea fits an existing cluster or needs a new one
-- [ ] Use OpenAI API with structured JSON schema (response_format) to get a decision: {cluster_name: str, is_new: bool}
-- [ ] If the LLM says the idea fits an existing cluster, assign it. If new, create the cluster with the LLM-suggested name
-- [ ] Store the idea-cluster assignment in the IdeaCluster table
-- [ ] Implement POST /cluster/llm endpoint that triggers LLM clustering for a given idea_id
-- [ ] Implement GET /clusters/llm endpoint that returns all LLM clusters with their assigned ideas
-- [ ] Write integration tests via TestClient: POST ideas, cluster via endpoint, verify correct assignment (mock OpenAI API responses for CI reliability)
-- [ ] Run test suite - must pass before task 5
+- [x] Implement cluster_idea function: given a new idea text, load existing LLM clusters (method=llm) from DB
+- [x] Build a prompt that provides existing cluster names and asks the LLM whether the new idea fits an existing cluster or needs a new one
+- [x] Use OpenAI API with structured JSON schema (response_format) to get a decision: {cluster_name: str, is_new: bool}
+- [x] If the LLM says the idea fits an existing cluster, assign it. If new, create the cluster with the LLM-suggested name
+- [x] Store the idea-cluster assignment in the IdeaCluster table
+- [x] Implement POST /cluster/llm endpoint that triggers LLM clustering for a given idea_id
+- [x] Implement GET /clusters/llm endpoint that returns all LLM clusters with their assigned ideas
+- [x] Write integration tests via TestClient: POST ideas, cluster via endpoint, verify correct assignment (mock OpenAI API responses for CI reliability)
+- [x] Run test suite - must pass before task 5
 
 ### Task 5: Verify acceptance criteria
 
