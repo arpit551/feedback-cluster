@@ -2,6 +2,8 @@ import json
 
 from openai import OpenAI
 
+from sqlalchemy import func
+
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session
 
@@ -104,7 +106,7 @@ def cluster_idea(idea_id: int) -> dict:
             # Look up the existing cluster by name
             existing = (
                 session.query(Cluster)
-                .filter(Cluster.method == "llm", Cluster.name == cluster_name)
+                .filter(Cluster.method == "llm", func.lower(Cluster.name) == cluster_name.lower())
                 .first()
             )
             if existing is not None:
