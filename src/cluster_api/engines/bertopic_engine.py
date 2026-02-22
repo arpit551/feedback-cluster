@@ -3,8 +3,6 @@ from typing import Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from sqlalchemy import text
-
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session
 from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
@@ -90,8 +88,6 @@ def cluster_idea(idea_id: int) -> dict:
 
     session = get_session()
     try:
-        # Acquire exclusive write lock before checking to prevent race conditions
-        session.execute(text("BEGIN IMMEDIATE"))
         existing = (
             session.query(IdeaCluster)
             .join(Cluster)
@@ -127,5 +123,8 @@ def cluster_idea(idea_id: int) -> dict:
                 "cluster_name": new_cluster.name,
                 "is_new": True,
             }
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()

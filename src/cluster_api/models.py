@@ -24,6 +24,13 @@ class IdeaOut(BaseModel):
     user_id: str
 
 
+class ClusterIdeaResponse(BaseModel):
+    idea_id: int
+    cluster_id: int
+    cluster_name: str
+    is_new: bool
+
+
 class ClusterResponse(BaseModel):
     cluster_id: int
     name: str

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import joinedload
 
 import cluster_api.db as db_module
 from cluster_api.config import settings
@@ -10,7 +11,7 @@ from cluster_api.db import Cluster, Idea, IdeaCluster, get_session, init_db
 from cluster_api.engines.bertopic_engine import cluster_idea as bertopic_cluster_idea
 from cluster_api.engines.llm_engine import cluster_idea as llm_cluster_idea
 from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
-from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterResponse, IdeaOut
+from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterIdeaResponse, ClusterResponse, IdeaOut
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def _check_idea_exists(idea_id: int) -> set:
             raise HTTPException(status_code=404, detail="Idea not found")
         existing = (
             session.query(IdeaCluster)
-            .join(Cluster)
+            .options(joinedload(IdeaCluster.cluster))
             .filter(IdeaCluster.idea_id == idea_id)
             .all()
         )
@@ -74,7 +75,7 @@ def _check_idea_exists(idea_id: int) -> set:
         session.close()
 
 
-@app.post("/cluster/bertopic")
+@app.post("/cluster/bertopic", response_model=ClusterIdeaResponse)
 def cluster_bertopic(req: ClusterIdeaRequest):
     existing_methods = _check_idea_exists(req.idea_id)
     if "bertopic" in existing_methods:
@@ -123,7 +124,7 @@ def list_bertopic_clusters():
     return _list_clusters("bertopic")
 
 
-@app.post("/cluster/llm")
+@app.post("/cluster/llm", response_model=ClusterIdeaResponse)
 def cluster_llm(req: ClusterIdeaRequest):
     existing_methods = _check_idea_exists(req.idea_id)
     if "llm" in existing_methods:

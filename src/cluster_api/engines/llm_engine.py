@@ -2,7 +2,7 @@ import json
 
 from openai import OpenAI
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 
 from cluster_api.config import settings
 from cluster_api.db import Cluster, Idea, IdeaCluster, get_session
@@ -113,8 +113,6 @@ def cluster_idea(idea_id: int) -> dict:
     # If the LLM says it fits an existing cluster, find it
     session = get_session()
     try:
-        # Acquire exclusive write lock before checking to prevent race conditions
-        session.execute(text("BEGIN IMMEDIATE"))
         existing_assignment = (
             session.query(IdeaCluster)
             .join(Cluster)
@@ -156,5 +154,8 @@ def cluster_idea(idea_id: int) -> dict:
             "cluster_name": new_cluster.name,
             "is_new": True,
         }
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
