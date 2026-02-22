@@ -1,3 +1,27 @@
 
 # ralphex progress logs
 .ralphex/progress/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Database
+*.db
+
+# Environment
+.env
+.coverage

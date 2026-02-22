@@ -1,0 +1,159 @@
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import joinedload
+
+import cluster_api.db as db_module
+from cluster_api.config import settings
+from cluster_api.db import Cluster, Idea, IdeaCluster, get_session, init_db
+from cluster_api.engines.bertopic_engine import cluster_idea as bertopic_cluster_idea
+
+from cluster_api.engines.llm_engine import cluster_idea as llm_cluster_idea
+from cluster_api.exceptions import AlreadyClusteredError, IdeaNotFoundError
+from cluster_api.models import (
+    AddIdeaRequest,
+    AddIdeaResponse,
+    ClusterIdeaResponse,
+    ClusterResponse,
+    IdeaOut,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if db_module._engine is None:
+        init_db(settings.db_path)
+    yield
+
+
+app = FastAPI(title="Idea Clustering API", lifespan=lifespan)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/ideas", response_model=AddIdeaResponse, status_code=201)
+def add_idea(req: AddIdeaRequest):
+    session = get_session()
+    try:
+        idea = Idea(text=req.text, user_id=req.user_id)
+        session.add(idea)
+        session.commit()
+        session.refresh(idea)
+        return AddIdeaResponse(idea_id=idea.id)
+    finally:
+        session.close()
+
+
+@app.get("/ideas", response_model=list[IdeaOut])
+def list_ideas():
+    session = get_session()
+    try:
+        ideas = session.query(Idea).all()
+        return [IdeaOut(id=i.id, text=i.text, user_id=i.user_id) for i in ideas]
+    finally:
+        session.close()
+
+
+class ClusterIdeaRequest(BaseModel):
+    idea_id: int
+
+
+def _check_idea_exists(idea_id: int) -> set:
+    session = get_session()
+    try:
+        idea = session.query(Idea).filter(Idea.id == idea_id).first()
+        if idea is None:
+            raise HTTPException(status_code=404, detail="Idea not found")
+        existing = (
+            session.query(IdeaCluster)
+            .options(joinedload(IdeaCluster.cluster))
+            .filter(IdeaCluster.idea_id == idea_id)
+            .all()
+        )
+        return {c.cluster.method for c in existing}
+    finally:
+        session.close()
+
+
+@app.post("/cluster/bertopic", response_model=ClusterIdeaResponse)
+def cluster_bertopic(req: ClusterIdeaRequest):
+    existing_methods = _check_idea_exists(req.idea_id)
+    if "bertopic" in existing_methods:
+        raise HTTPException(status_code=409, detail="Idea already clustered with bertopic")
+
+    try:
+        result = bertopic_cluster_idea(req.idea_id)
+    except AlreadyClusteredError:
+        raise HTTPException(status_code=409, detail="Idea already clustered with bertopic")
+    except IdeaNotFoundError:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    except Exception:
+        logger.exception("BERTopic clustering failed for idea %s", req.idea_id)
+        raise HTTPException(status_code=500, detail="Clustering failed")
+    result["idea_id"] = req.idea_id
+    return result
+
+
+
+def _list_clusters(method: str) -> list[ClusterResponse]:
+    session = get_session()
+    try:
+        clusters = session.query(Cluster).filter(Cluster.method == method).all()
+        result = []
+        for cluster in clusters:
+            assignments = (
+                session.query(IdeaCluster)
+                .filter(IdeaCluster.cluster_id == cluster.id)
+                .all()
+            )
+            idea_ids = [a.idea_id for a in assignments]
+            ideas = session.query(Idea).filter(Idea.id.in_(idea_ids)).all() if idea_ids else []
+            result.append(
+                ClusterResponse(
+                    cluster_id=cluster.id,
+                    name=cluster.name,
+                    ideas=[IdeaOut(id=i.id, text=i.text, user_id=i.user_id) for i in ideas],
+                )
+            )
+        return result
+    finally:
+        session.close()
+
+
+@app.get("/clusters/bertopic", response_model=list[ClusterResponse])
+def list_bertopic_clusters():
+    return _list_clusters("bertopic")
+
+
+@app.post("/cluster/llm", response_model=ClusterIdeaResponse)
+def cluster_llm(req: ClusterIdeaRequest):
+    existing_methods = _check_idea_exists(req.idea_id)
+    if "llm" in existing_methods:
+        raise HTTPException(status_code=409, detail="Idea already clustered with llm")
+
+    try:
+        result = llm_cluster_idea(req.idea_id)
+    except AlreadyClusteredError:
+        raise HTTPException(status_code=409, detail="Idea already clustered with llm")
+    except IdeaNotFoundError:
+        raise HTTPException(status_code=404, detail="Idea not found")
+    except RuntimeError as e:
+        logger.error("LLM clustering configuration error: %s", e)
+        raise HTTPException(status_code=500, detail="LLM clustering failed")
+    except Exception:
+        logger.exception("LLM clustering failed for idea %s", req.idea_id)
+        raise HTTPException(status_code=500, detail="Clustering failed")
+    result["idea_id"] = req.idea_id
+    return result
+
+
+@app.get("/clusters/llm", response_model=list[ClusterResponse])
+def list_llm_clusters():
+    return _list_clusters("llm")

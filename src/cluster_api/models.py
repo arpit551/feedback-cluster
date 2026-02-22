@@ -1,0 +1,38 @@
+from pydantic import BaseModel, Field, field_validator
+
+
+class AddIdeaRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    user_id: str = Field(..., min_length=1, max_length=255)
+
+    @field_validator("text", "user_id")
+    @classmethod
+    def must_not_be_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("must not be blank")
+        return v
+
+
+class AddIdeaResponse(BaseModel):
+    idea_id: int
+
+
+class IdeaOut(BaseModel):
+    id: int
+    text: str
+    user_id: str
+
+
+class ClusterIdeaResponse(BaseModel):
+    idea_id: int
+    cluster_id: int
+    cluster_name: str
+    is_new: bool
+    confidence: float = 1.0
+
+
+class ClusterResponse(BaseModel):
+    cluster_id: int
+    name: str
+    ideas: list[IdeaOut]
