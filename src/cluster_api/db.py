@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
@@ -14,7 +14,7 @@ class Idea(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(String, nullable=False)
     user_id = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     clusters = relationship("IdeaCluster", back_populates="idea")
 

@@ -1,8 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from cluster_api.config import settings
@@ -55,25 +53,43 @@ class ClusterIdeaRequest(BaseModel):
     idea_id: int
 
 
-@app.post("/cluster/bertopic")
-def cluster_bertopic(req: ClusterIdeaRequest):
+def _check_idea_exists(idea_id: int) -> None:
     session = get_session()
     try:
-        idea = session.query(Idea).filter(Idea.id == req.idea_id).first()
+        idea = session.query(Idea).filter(Idea.id == idea_id).first()
         if idea is None:
             raise HTTPException(status_code=404, detail="Idea not found")
+        existing = (
+            session.query(IdeaCluster)
+            .join(Cluster)
+            .filter(IdeaCluster.idea_id == idea_id)
+            .all()
+        )
+        return {c.cluster.method for c in existing}
     finally:
         session.close()
 
-    result = bertopic_cluster_idea(req.idea_id)
+
+@app.post("/cluster/bertopic")
+def cluster_bertopic(req: ClusterIdeaRequest):
+    existing_methods = _check_idea_exists(req.idea_id)
+    if "bertopic" in existing_methods:
+        raise HTTPException(status_code=409, detail="Idea already clustered with bertopic")
+
+    try:
+        result = bertopic_cluster_idea(req.idea_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Clustering failed: {e}")
+    result["idea_id"] = req.idea_id
     return result
 
 
-@app.get("/clusters/bertopic", response_model=list[ClusterResponse])
-def list_bertopic_clusters():
+def _list_clusters(method: str) -> list[ClusterResponse]:
     session = get_session()
     try:
-        clusters = session.query(Cluster).filter(Cluster.method == "bertopic").all()
+        clusters = session.query(Cluster).filter(Cluster.method == method).all()
         result = []
         for cluster in clusters:
             assignments = (
@@ -95,41 +111,27 @@ def list_bertopic_clusters():
         session.close()
 
 
+@app.get("/clusters/bertopic", response_model=list[ClusterResponse])
+def list_bertopic_clusters():
+    return _list_clusters("bertopic")
+
+
 @app.post("/cluster/llm")
 def cluster_llm(req: ClusterIdeaRequest):
-    session = get_session()
-    try:
-        idea = session.query(Idea).filter(Idea.id == req.idea_id).first()
-        if idea is None:
-            raise HTTPException(status_code=404, detail="Idea not found")
-    finally:
-        session.close()
+    existing_methods = _check_idea_exists(req.idea_id)
+    if "llm" in existing_methods:
+        raise HTTPException(status_code=409, detail="Idea already clustered with llm")
 
-    result = llm_cluster_idea(req.idea_id)
+    try:
+        result = llm_cluster_idea(req.idea_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Clustering failed: {e}")
+    result["idea_id"] = req.idea_id
     return result
 
 
 @app.get("/clusters/llm", response_model=list[ClusterResponse])
 def list_llm_clusters():
-    session = get_session()
-    try:
-        clusters = session.query(Cluster).filter(Cluster.method == "llm").all()
-        result = []
-        for cluster in clusters:
-            assignments = (
-                session.query(IdeaCluster)
-                .filter(IdeaCluster.cluster_id == cluster.id)
-                .all()
-            )
-            idea_ids = [a.idea_id for a in assignments]
-            ideas = session.query(Idea).filter(Idea.id.in_(idea_ids)).all() if idea_ids else []
-            result.append(
-                ClusterResponse(
-                    cluster_id=cluster.id,
-                    name=cluster.name,
-                    ideas=[IdeaOut(id=i.id, text=i.text, user_id=i.user_id) for i in ideas],
-                )
-            )
-        return result
-    finally:
-        session.close()
+    return _list_clusters("llm")

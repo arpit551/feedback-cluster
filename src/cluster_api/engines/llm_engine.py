@@ -34,53 +34,66 @@ def cluster_idea(idea_id: int) -> dict:
     finally:
         session.close()
 
-    # Build prompt for the LLM
+    # Build prompt for the LLM -- separate system instructions from user content
     if cluster_data:
         cluster_list = "\n".join(f"- {name}" for _, name in cluster_data)
-        prompt = (
-            f"You are a topic classifier. Given a new idea and a list of existing clusters, "
-            f"decide whether the idea fits an existing cluster or needs a new one.\n\n"
-            f"Existing clusters:\n{cluster_list}\n\n"
-            f"New idea: \"{idea_text}\"\n\n"
-            f"If the idea fits an existing cluster, return its exact name. "
-            f"If it needs a new cluster, suggest a short descriptive name for the new cluster."
+        system_msg = (
+            "You are a topic classifier. Given a new idea and a list of existing clusters, "
+            "decide whether the idea fits an existing cluster or needs a new one. "
+            "If the idea fits an existing cluster, return its exact name. "
+            "If it needs a new cluster, suggest a short descriptive name for the new cluster."
         )
+        user_msg = f"Existing clusters:\n{cluster_list}\n\nNew idea: \"{idea_text}\""
     else:
-        prompt = (
-            f"You are a topic classifier. There are no existing clusters yet.\n\n"
-            f"New idea: \"{idea_text}\"\n\n"
-            f"Suggest a short descriptive name for a new cluster that this idea belongs to."
+        system_msg = (
+            "You are a topic classifier. There are no existing clusters yet. "
+            "Suggest a short descriptive name for a new cluster that the given idea belongs to."
         )
+        user_msg = f"New idea: \"{idea_text}\""
 
     client = _get_client()
-    response = client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[{"role": "user", "content": prompt}],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "cluster_decision",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "cluster_name": {
-                            "type": "string",
-                            "description": "The name of the cluster (existing or new)",
+    try:
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "cluster_decision",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "cluster_name": {
+                                "type": "string",
+                                "description": "The name of the cluster (existing or new)",
+                            },
+                            "is_new": {
+                                "type": "boolean",
+                                "description": "True if this is a new cluster, False if existing",
+                            },
                         },
-                        "is_new": {
-                            "type": "boolean",
-                            "description": "True if this is a new cluster, False if assigning to an existing one",
-                        },
+                        "required": ["cluster_name", "is_new"],
+                        "additionalProperties": False,
                     },
-                    "required": ["cluster_name", "is_new"],
-                    "additionalProperties": False,
                 },
             },
-        },
-    )
+        )
+    except Exception as e:
+        raise ValueError(f"OpenAI API call failed: {e}")
 
-    decision = json.loads(response.choices[0].message.content)
+    content = response.choices[0].message.content
+    if content is None:
+        raise ValueError("OpenAI returned empty response")
+
+    try:
+        decision = json.loads(content)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse LLM response: {e}")
+
     cluster_name = decision["cluster_name"]
     is_new = decision["is_new"]
 

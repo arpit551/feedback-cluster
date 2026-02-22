@@ -1,25 +1,23 @@
 """Integration tests for BERTopic clustering endpoints."""
 
+import pytest
+
 import cluster_api.engines.bertopic_engine as bertopic_engine
+from tests.conftest import add_idea
 
 
-def _add_idea(client, text, user_id="u1"):
-    resp = client.post("/ideas", json={"text": text, "user_id": user_id})
-    assert resp.status_code == 201
-    return resp.json()["idea_id"]
-
-
-def _reset_model():
+@pytest.fixture(autouse=True)
+def reset_bertopic_model():
     """Reset the cached sentence-transformer model between tests."""
     bertopic_engine._model = None
 
 
 def test_cluster_single_idea(client):
-    _reset_model()
-    idea_id = _add_idea(client, "We should improve our onboarding flow for new users")
+    idea_id = add_idea(client, "We should improve our onboarding flow for new users")
     resp = client.post("/cluster/bertopic", json={"idea_id": idea_id})
     assert resp.status_code == 200
     data = resp.json()
+    assert data["idea_id"] == idea_id
     assert "cluster_id" in data
     assert "cluster_name" in data
     assert data["is_new"] is True
@@ -31,9 +29,8 @@ def test_cluster_nonexistent_idea(client):
 
 
 def test_similar_ideas_same_cluster(client):
-    _reset_model()
-    id1 = _add_idea(client, "Improve the user onboarding experience")
-    id2 = _add_idea(client, "Make the onboarding flow better for new users")
+    id1 = add_idea(client, "Improve the user onboarding experience")
+    id2 = add_idea(client, "Make the onboarding flow better for new users")
 
     r1 = client.post("/cluster/bertopic", json={"idea_id": id1})
     assert r1.status_code == 200
@@ -49,9 +46,8 @@ def test_similar_ideas_same_cluster(client):
 
 
 def test_different_ideas_different_clusters(client):
-    _reset_model()
-    id1 = _add_idea(client, "We need a dark mode toggle in the settings page")
-    id2 = _add_idea(client, "Add real-time stock price alerts via SMS notifications")
+    id1 = add_idea(client, "We need a dark mode toggle in the settings page")
+    id2 = add_idea(client, "Add real-time stock price alerts via SMS notifications")
 
     r1 = client.post("/cluster/bertopic", json={"idea_id": id1})
     assert r1.status_code == 200
@@ -68,10 +64,9 @@ def test_different_ideas_different_clusters(client):
 
 
 def test_get_bertopic_clusters(client):
-    _reset_model()
-    id1 = _add_idea(client, "Add a search bar to the navigation header")
-    id2 = _add_idea(client, "Include a search feature in the top navigation")
-    id3 = _add_idea(client, "Build a recommendation engine for product suggestions")
+    id1 = add_idea(client, "Add a search bar to the navigation header")
+    id2 = add_idea(client, "Include a search feature in the top navigation")
+    id3 = add_idea(client, "Build a recommendation engine for product suggestions")
 
     client.post("/cluster/bertopic", json={"idea_id": id1})
     client.post("/cluster/bertopic", json={"idea_id": id2})
@@ -105,7 +100,6 @@ def test_get_bertopic_clusters_empty(client):
 
 
 def test_cluster_multiple_ideas_incrementally(client):
-    _reset_model()
     # Add several ideas on the same topic incrementally (high similarity phrases)
     ideas = [
         "Add email notifications when user accounts are modified",
@@ -113,7 +107,7 @@ def test_cluster_multiple_ideas_incrementally(client):
         "Notify users via email when their account is changed",
     ]
 
-    idea_ids = [_add_idea(client, text) for text in ideas]
+    idea_ids = [add_idea(client, text) for text in ideas]
 
     # Cluster them one by one
     results = []
@@ -128,3 +122,14 @@ def test_cluster_multiple_ideas_incrementally(client):
     # At least one of the subsequent ones should join the existing cluster
     joined_existing = any(not r["is_new"] for r in results[1:])
     assert joined_existing, "Expected at least one similar idea to join an existing cluster"
+
+
+def test_cluster_duplicate_idea_rejected(client):
+    """Clustering the same idea twice with BERTopic should return 409."""
+    idea_id = add_idea(client, "Improve the user onboarding experience")
+    resp = client.post("/cluster/bertopic", json={"idea_id": idea_id})
+    assert resp.status_code == 200
+
+    # Second attempt should be rejected
+    resp = client.post("/cluster/bertopic", json={"idea_id": idea_id})
+    assert resp.status_code == 409
