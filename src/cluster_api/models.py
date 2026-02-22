@@ -8,7 +8,8 @@ class AddIdeaRequest(BaseModel):
     @field_validator("text", "user_id")
     @classmethod
     def must_not_be_blank(cls, v: str) -> str:
-        if not v.strip():
+        v = v.strip()
+        if not v:
             raise ValueError("must not be blank")
         return v
 
