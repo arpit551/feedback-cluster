@@ -53,7 +53,7 @@ class ClusterIdeaRequest(BaseModel):
     idea_id: int
 
 
-def _check_idea_exists(idea_id: int) -> None:
+def _check_idea_exists(idea_id: int) -> set:
     session = get_session()
     try:
         idea = session.query(Idea).filter(Idea.id == idea_id).first()
@@ -80,8 +80,8 @@ def cluster_bertopic(req: ClusterIdeaRequest):
         result = bertopic_cluster_idea(req.idea_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Clustering failed: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Clustering failed")
     result["idea_id"] = req.idea_id
     return result
 
@@ -126,8 +126,8 @@ def cluster_llm(req: ClusterIdeaRequest):
         result = llm_cluster_idea(req.idea_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Clustering failed: {e}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Clustering failed")
     result["idea_id"] = req.idea_id
     return result
 
