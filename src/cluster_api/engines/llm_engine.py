@@ -83,7 +83,7 @@ def cluster_idea(idea_id: int) -> dict:
             },
         )
     except Exception as e:
-        raise ValueError(f"OpenAI API call failed: {e}")
+        raise RuntimeError(f"OpenAI API call failed: {e}") from e
 
     content = response.choices[0].message.content
     if content is None:
@@ -92,7 +92,7 @@ def cluster_idea(idea_id: int) -> dict:
     try:
         decision = json.loads(content)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse LLM response: {e}")
+        raise ValueError(f"Failed to parse LLM response: {e}") from e
 
     cluster_name = decision["cluster_name"]
     is_new = decision["is_new"]
