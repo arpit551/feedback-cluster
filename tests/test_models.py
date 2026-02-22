@@ -1,4 +1,4 @@
-from cluster_api.db import Idea, Cluster, IdeaCluster, get_session
+from cluster_api.db import Cluster, Idea, IdeaCluster
 from cluster_api.models import AddIdeaRequest, AddIdeaResponse, ClusterResponse, IdeaOut
 
 
